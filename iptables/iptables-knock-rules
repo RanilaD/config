@@ -1,0 +1,40 @@
+#!/sbin/iptables-restore
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+:TRAFFIC - [0:0]
+:SSH-ONE - [0:0]
+:SSH-TWO - [0:0]
+
+-A INPUT -j TRAFFIC
+
+# DNS
+-A TRAFFIC -m state --state NEW -m udp -p udp --dport 53 -j ACCEPT
+-A TRAFFIC -m state --state NEW -m tcp -p tcp --dport 53 -j ACCEPT
+
+# HTTP
+-A TRAFFIC -m state --state NEW -m udp -p udp --dport 80 -j ACCEPT
+-A TRAFFIC -m state --state NEW -m tcp -p tcp --dport 80 -j ACCEPT
+
+# HTTPS
+-A TRAFFIC -m state --state NEW -m udp -p udp --dport 443 -j ACCEPT
+-A TRAFFIC -m state --state NEW -m tcp -p tcp --dport 443 -j ACCEPT
+
+# ICMP
+-A TRAFFIC -p icmp --icmp-type any -j ACCEPT
+
+# SSH. Knock-chain: 8437 -> 1059 -> 9428
+-A TRAFFIC -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A TRAFFIC -m state --state NEW -m tcp -p tcp --dport 22 -m recent --rcheck --seconds 60 --name SSH2 -j ACCEPT
+-A TRAFFIC -m state --state NEW -m tcp -p tcp -m recent --name SSH2 --remove -j DROP
+-A TRAFFIC -m state --state NEW -m tcp -p tcp --dport 9428 -m recent --rcheck --name SSH1 -j SSH-TWO
+-A TRAFFIC -m state --state NEW -m tcp -p tcp -m recent --name SSH1 --remove -j DROP
+-A TRAFFIC -m state --state NEW -m tcp -p tcp --dport 1059 -m recent --rcheck --name SSH0 -j SSH-ONE
+-A TRAFFIC -m state --state NEW -m tcp -p tcp -m recent --name SSH0 --remove -j DROP
+-A TRAFFIC -m state --state NEW -m tcp -p tcp --dport 8437 -m recent --name SSH0 --set -j DROP
+-A SSH-ONE -m recent --name SSH1 --set -j DROP
+-A SSH-TWO -m recent --name SSH2 --set -j DROP 
+-A TRAFFIC -j DROP
+
+COMMIT
